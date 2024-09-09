@@ -11,6 +11,8 @@ from langchain_core.prompts import (
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain.chains import LLMChain
 from langchain.chains import GraphCypherQAChain
+from langchain.chains.graph_qa.cypher_utils import CypherQueryCorrector, Schema
+
 
 from langchain_core.runnables import (
     RunnableBranch,
@@ -29,6 +31,8 @@ from utils import (
     import_cypher_query,
 )
 
+from prompt import CYPHER_GENERATION_PROMPT_TEMPLATE
+
 # Condense a chat history and follow-up question into a standalone question
 rewrite_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
 Chat History:
@@ -36,57 +40,6 @@ Chat History:
 Follow Up Input: {question}
 Standalone question:"""  # noqa: E501
 CONDENSE_QUESTION_PROMPT = PromptTemplate.from_template(rewrite_template)
-
-# RAG answer synthesis prompt
-template = """You are a helpful assistant that answers questions based on the provided context.
-
----Special Instructions---
-1. When answering salary-related questions, prioritize mentioning positions with the highest salaries. For instance, if asked about "4 lakhs annually," focus on high-paying roles like Automotive Engineer and Manufacturing Engineer rather than lower-paying positions.
-2. Ensure all responses are closely related to the recruitment theme. Avoid discussing information unrelated to job positions, companies, or the application process.
-3. When encountering ambiguous queries, attempt to understand the job seeker's potential intentions. For example, "company benefits" could be interpreted as inquiries about health insurance, paid time off, or professional development opportunities.
-4. If asked about specific skills or qualifications, only mention those explicitly stated in the provided data. Do not assume or infer requirements not listed in the job descriptions.
-5. When comparing multiple positions, focus on objective data points such as salary, required experience, and listed responsibilities. Avoid making subjective judgments about which job is "better" unless specifically asked to do so based on certain criteria.
-6. Numerical Data Handling (CRITICAL):
-   a. Always treat scores and ratings as numerical values, not text.
-   b. When sorting or ranking based on scores:
-      - Create a list of tuples (item, score).
-      - Convert all scores to numbers (if not already).
-      - Sort the list based on these numerical values.    
-   c. When selecting top N items:
-      - After sorting, select the first N items from the list.
-   d. Always double-check your sorting and selection before answering.
-7. For questions about top aptitudes or skills:
-   a. Use ONLY the "Aptitude Ratings" section in the data.
-   b. Follow the exact sorting process in instruction 6.
-   c. List selected aptitudes from highest score to lowest.
-   d. Include the numerical score for each aptitude.
-   e. Verify that your top selections are correct by manually comparing their scores.
-8. For salary-related queries specific to certain locations (e.g., villages), refer to the "Geographic Salary Ratings" section and use the appropriate salary range for that location category.
-9. Before finalizing any answer involving numerical rankings or selections:
-   a. Explicitly list out all relevant items with their scores.
-   b. Show your sorting process step-by-step.
-   c. Confirm that the final order is correct by manually comparing the top few scores.
-10. When asked for top N aptitudes or skills:
-    a. Use ONLY the "Aptitude Ratings" section in the data.
-    b. List ALL aptitudes with their scores.
-    c. Sort them in descending order of scores.
-    d. Select the top N aptitudes based on this sorted list.
-    e. In case of ties, include all aptitudes with the same score.
-    f. Always show your work by listing all aptitudes, their scores, and the sorting process.
-11. Tie-breaking rule:
-    When selecting top N items and there's a tie for the Nth position, include ALL items with that score. This may result in more than N items being listed.
-12. Verification step:
-    After sorting and selecting the top items, manually verify that:
-    a. All items with the same score as the Nth item are included.
-    b. No item with a higher score than the Nth item is excluded.
-    c. The total number of items may exceed N if there are ties.
-
-Answer the question based only on the following context:
-<context>
-{context}
-</context>
-If the context doesn't provide any helpful information, say that you don't know the answer.
-"""
 
 ANSWER_PROMPT = ChatPromptTemplate.from_messages(
     [
@@ -113,38 +66,6 @@ _search_query = RunnableBranch(
 )
 
 def query_generate(question):
-    CYPHER_GENERATION_TEMPLATE = """## Introduction  
-    This prompt is designed to help translate natural language questions into Cypher queries for a graph database. 
-    The database schema encapsulates various aspects of job profiles, such as job roles, aptitudes, and employers.  
-
-    Schema:
-    {schema}
-
-    Note: Do not include any explanations or apologies in your responses.
-    Use only the provided relationship types and properties in the schema.
-    Do not use any other relationship types or properties that are not provided.
-    Do not include any text except the generated Cypher statement.
-
-    ## Example Questions and Queries  
-    1. **Question**: Which employers are known for hiring in the healthcare sector?  
-    **Cypher Query**:  
-    MATCH (j:JobProfile)-[:EMPLOYED_BY]->(e:Employer)  
-    WHERE j.sector = 'Healthcare'  
-    RETURN DISTINCT e.name AS EmployerName, e.description AS EmployerDescription
-
-    2. **Question**: What are the top 3 aptitudes I would need to excel as an Retail Sales Associate?
-    **Cypher Query**
-    MATCH (j:JobProfile {{jobRole: "Retail Sales Associate"}})-[r:HAS_APTITUDE]->(a:Aptitude)
-    RETURN a.attribute
-    ORDER BY r.score DESC
-    LIMIT 3
-
-    ## Instructions for Translation  
-    When given a natural language question, identify the relevant entities and relationships. Construct a Cypher query by mapping elements of the question to nodes and relationships in the graph database schema.  
-
-    ## Question: {question}  
-    Now, only write down the query statement without any surrounding Markdown formatting elements.
-    """  
     # cypher_llm_chain = LLMChain(  
     #     llm=llm,  
     #     prompt=PromptTemplate.from_template(cypher_prompt_template)  
@@ -152,8 +73,14 @@ def query_generate(question):
     
     
     CYPHER_GENERATION_PROMPT = PromptTemplate(
-        input_variables=["schema", "question"], template=CYPHER_GENERATION_TEMPLATE
+        input_variables=["schema", "question"], template=CYPHER_GENERATION_PROMPT_TEMPLATE
     )
+
+    corrector_schema = [
+        Schema(el["start"], el["type"], el["end"])
+        for el in graph.structured_schema.get("relationships")
+    ]
+    cypher_validation = CypherQueryCorrector(corrector_schema)
 
     cypher_llm_chain = GraphCypherQAChain.from_llm(
         llm=llm,
@@ -161,7 +88,8 @@ def query_generate(question):
         verbose=True,
         cypher_prompt=CYPHER_GENERATION_PROMPT,
     )
-    response = cypher_llm_chain.run(question)
+    response = cypher_llm_chain.invoke(question)
+    result = response['result']
     return response.strip()
 
 # # Fulltext index query
