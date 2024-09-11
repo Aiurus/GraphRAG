@@ -14,10 +14,11 @@ import { ChatMessage } from "./interfaces";
 import { extractContext, extractKGData, getChatHistory } from "./utils";
 import { RetrievalModeSelector } from "./components/RetrievalModeSelector";
 import { useQuery } from "@tanstack/react-query";
-import { refreshSchema } from "../../api";
+import { apiClient, refreshSchema } from "../../api";
 
 import styles from "./styles.module.css";
 import { Message } from "./components/Message";
+
 
 export function Chat() {
   const { retrievalMode, includeChatHistory, setIncludeChatHistory } =
@@ -29,6 +30,7 @@ export function Chat() {
   const [error, setError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [response, setResponse] = useState([]);
 
   const refreshSchemaQuery = useQuery({
     queryKey: ["refresh-schema"],
@@ -65,29 +67,29 @@ export function Chat() {
       });
 
       let payload: Record<string, any>;
-      const chatHistory = includeChatHistory ? getChatHistory(messages, 3) : [];
+      // const chatHistory = includeChatHistory ? getChatHistory(messages, 3) : [];
 
       switch (mode.name) {
         case "graph_based_prefiltering":
           payload = {
             input,
-            chat_history: chatHistory,
+            // chat_history: chatHistory,
           };
           break;
         case "text2cypher":
           payload = {
             question: input,
-            chat_history: chatHistory,
+            // chat_history: chatHistory,
           };
           break;
         default:
           payload = {
             question: input,
-            chat_history: chatHistory,
+            // chat_history: chatHistory,
             mode: mode.name,
           };
       }
-
+      const before = Date.now();
       const stream = await remoteChain.streamLog(payload);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -105,9 +107,14 @@ export function Chat() {
 
       console.log("currentOutput", currentOutput);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await apiClient.get("/chat/stream_log");
+      console.log("API response:", res);
+      setResponse([...response, {...res, timestamp: Date.now() - before }]);
+
     } catch (error: any) {
       console.log("Error invoking remote chain:", error);
       setError(error.message ? error.message : `${JSON.stringify(error)}`);
+      setResponse([...response, {data: "", timestamp: Date.now()}]);
     }
     setIsGenerating(false);
   };
@@ -265,6 +272,7 @@ export function Chat() {
                   message.sender === "bot" &&
                   index === messages.length - 1
                 }
+                response={response[Math.floor(index/2)] ? response[Math.floor(index/2)] :{data: "", timestamp: Date.now()}}
               />
             ))}
             {error && (

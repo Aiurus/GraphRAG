@@ -18,16 +18,17 @@ def get_articles():
     """
     Fetch relevant articles from Diffbot KG endpoint
     """
-    with open('TransformerService.job_profiles_26Aug.json', 'r') as file:  
+    with open('TransformerService.job_profiles_3rdSep_100.json', 'r') as file:  
         data = json.load(file)
     return data
 
 
-def getSaraly(estimatedSalaryRange: str) -> List[int] :
-    numbers = re.findall(r'\d+', estimatedSalaryRange)
-    min_salary = int(numbers[0].replace(',', ''))  
-    max_salary = int(numbers[1].replace(',', ''))
-    return [min_salary, max_salary]
+def getSalary(estimatedSalaryRange: str) -> List[int] :
+    pattern = r'₹([\d,]+)'  
+
+    # Find all matches and remove commas from the numbers  
+    matches = [int(match.replace(',', '')) for match in re.findall(pattern, estimatedSalaryRange)]  
+    return [matches[0], matches[1]]
 
 
 def process_params(data):
@@ -138,8 +139,8 @@ def process_params(data):
                         "geographicOption": el["geographicOption"],
                         "jobAvailability": el["jobAvailability"],
                         "estimatedSalaryRange": el["estimatedSalaryRange"],
-                        "maximumSalary": getSaraly(el["estimatedSalaryRange"])[0],
-                        "minimumSalary": getSaraly(el["estimatedSalaryRange"])[0],
+                        "minimumSalary": getSalary(el["estimatedSalaryRange"])[0],
+                        "maximumSalary": getSalary(el["estimatedSalaryRange"])[1],
                     }
                     for el in article.get("geographicJobDetails", [])
                 ],

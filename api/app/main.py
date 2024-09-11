@@ -13,7 +13,7 @@ from importing import get_articles, import_cypher_query, process_params
 from langserve import add_routes
 from processing import process_document, store_graph_documents
 from text2cypher import text2cypher_chain
-from utils import graph, remove_null_properties
+from utils import graph, remove_null_properties, token_cost_process, TokenCostProcess
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -194,8 +194,14 @@ RETURN {nodes: [n in allNodes |
     )
     return remove_null_properties(data[0]["output"])
 
-
 add_routes(app, chain, path="/chat", enabled_endpoints=["stream_log"])
+
+@app.get("/chat/stream_log")
+def fetch_stream_log() -> str:
+    print("Fetching stream log...")
+    response = token_cost_process.get_cost_summary("gpt-4-turbo")
+    return response
+
 add_routes(
     app, text2cypher_chain, path="/text2cypher", enabled_endpoints=["stream_log"]
 )
@@ -209,5 +215,5 @@ add_routes(
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)

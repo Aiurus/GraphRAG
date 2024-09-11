@@ -18,9 +18,13 @@ interface Props {
   message: ChatMessage;
   index: number;
   isGenerating: boolean;
+  response: {  
+    data: string;  
+    timestamp: Date;  
+  };
 }
 
-export function Message({ message, index, isGenerating }: Props) {
+export function Message({ message, index, isGenerating, response }: Props) {
   const [contextOpened, { open: contextOpen, close: contextClose }] =
     useDisclosure(false);
   const [kgOpened, { open: kgOpen, close: kgClose }] = useDisclosure(false);
@@ -84,6 +88,8 @@ export function Message({ message, index, isGenerating }: Props) {
         )}
       </div>
       {isGenerating && <div className={styles.isGenerating}></div>}
-    </Paper>
+      {message.sender === "bot" && <p style={{fontSize:"12px", marginLeft:"35px"}}>{response.data}</p>}
+      {message.sender === "bot" && response.data !== "" && <p style={{fontSize:"12px", marginLeft:"35px"}}>{response.timestamp.toString()+"ms"}</p>}
+      </Paper>
   );
 }
