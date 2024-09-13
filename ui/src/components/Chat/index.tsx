@@ -90,8 +90,9 @@ export function Chat() {
           };
       }
       const before = Date.now();
+      let duration = 0;
       const stream = await remoteChain.streamLog(payload);
-
+      
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let currentOutput: any;
 
@@ -102,14 +103,14 @@ export function Chat() {
           currentOutput = currentOutput.concat(chunk);
         }
 
-        handleStreamOutput(currentOutput);
+        duration = handleStreamOutput(currentOutput, before, duration);
       }
 
       console.log("currentOutput", currentOutput);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await apiClient.get("/chat/stream_log");
       console.log("API response:", res);
-      setResponse([...response, {...res, timestamp: Date.now() - before }]);
+      setResponse([...response, {...res, timestamp: duration }]);
 
     } catch (error: any) {
       console.log("Error invoking remote chain:", error);
@@ -119,7 +120,7 @@ export function Chat() {
     setIsGenerating(false);
   };
 
-  const handleStreamOutput = (currentOutput: any) => {
+  const handleStreamOutput = (currentOutput: any, before: number, duration: number) => {
     let query = "";
     let output = "";
     let steps = "";
@@ -135,7 +136,7 @@ export function Chat() {
     setMessages((prevMessages) => {
       const newMessages = [...prevMessages];
       const lastMessage = newMessages[newMessages.length - 1];
-
+      if (lastMessage.sender == "bot" && lastMessage.text == "") {duration =  Date.now() - before;}
       if (currentOutput?.state?.final_output) {
         if (typeof currentOutput?.state?.final_output === "object") {
           // prefiltering final_output is an object - we include steps
@@ -173,7 +174,6 @@ export function Chat() {
                 .messages[0].content,
             );
             if (context !== "") {
-              console.log("=================================", context);
               kgData = extractKGData(context);
               console.log("kgData", kgData);
             }
@@ -209,6 +209,7 @@ export function Chat() {
 
       return newMessages;
     });
+    return duration;
   };
 
   const handleTextareaInputChange = (

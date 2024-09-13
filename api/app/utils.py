@@ -14,28 +14,28 @@ from langchain.schema import LLMResult
 from typing import Any, Dict, List
 import tiktoken
 
-MODEL_COST_PER_1K_TOKENS = {
-    "gpt-4": 0.03,
-    "gpt-4-0314": 0.03,
-    "gpt-4-completion": 0.06,
-    "gpt-4-0314-completion": 0.06,
-    "gpt-4-32k": 0.06,
-    "gpt-4-32k-0314": 0.06,
-    "gpt-4-32k-completion": 0.12,
-    "gpt-4-32k-0314-completion": 0.12,
-    "gpt-3.5-turbo": 0.002,
-    "gpt-4-turbo": 0.002,
-    "gpt-4o-mini": 0.003,
-    "text-ada-001": 0.0004,
-    "ada": 0.0004,
-    "text-babbage-001": 0.0005,
-    "babbage": 0.0005,
-    "text-curie-001": 0.002,
-    "curie": 0.002,
-    "text-davinci-003": 0.02,
-    "text-davinci-002": 0.02,
-    "code-davinci-002": 0.02,
-}
+# MODEL_COST_PER_1K_TOKENS = {
+#     "gpt-4": 0.03,
+#     "gpt-4-0314": 0.03,
+#     "gpt-4-completion": 0.06,
+#     "gpt-4-0314-completion": 0.06,
+#     "gpt-4-32k": 0.06,
+#     "gpt-4-32k-0314": 0.06,
+#     "gpt-4-32k-completion": 0.12,
+#     "gpt-4-32k-0314-completion": 0.12,
+#     "gpt-3.5-turbo": 0.002,
+#     "gpt-4-turbo": 0.002,
+#     "gpt-4o-mini": 0.003,
+#     "text-ada-001": 0.0004,
+#     "ada": 0.0004,
+#     "text-babbage-001": 0.0005,
+#     "babbage": 0.0005,
+#     "text-curie-001": 0.002,
+#     "curie": 0.002,
+#     "text-davinci-003": 0.02,
+#     "text-davinci-002": 0.02,
+#     "code-davinci-002": 0.02,
+# }
 
 class TokenCostProcess:
     total_tokens: int = 0
@@ -58,8 +58,8 @@ class TokenCostProcess:
     def sum_successful_requests( self, requests: int ):
       self.successful_requests = self.successful_requests + requests
 
-    def get_openai_total_cost_for_model( self, model: str ) -> float:
-       return MODEL_COST_PER_1K_TOKENS[model] * self.total_tokens / 1000
+    # def get_openai_total_cost_for_model( self, model: str ) -> float:
+    #    return MODEL_COST_PER_1K_TOKENS[model] * self.total_tokens / 1000
     
     def get_cost_summary(self, model:str) -> str:
         # cost = self.get_openai_total_cost_for_model(model)
@@ -105,9 +105,8 @@ class CostCalcAsyncHandler(AsyncCallbackHandler):
     def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
       self.token_cost_process.sum_successful_requests( 1 )
 
-index_name = "news_vector"
-keyword_index_name = "news_fulltext"
-entity_keyword_index = "entity"
+index_name = "jobProfile_vector"
+keyword_index_name = "jobProfile_fulltext"
 
 token_cost_process = TokenCostProcess()
 llm = ChatOpenAI(temperature=0, callbacks=[  CostCalcAsyncHandler( "gpt-4o-mini", token_cost_process ) ], model="gpt-4o-mini", streaming=True)
@@ -115,21 +114,14 @@ llm = ChatOpenAI(temperature=0, callbacks=[  CostCalcAsyncHandler( "gpt-4o-mini"
 
 def setup_indices():
     graph.query(
-        "CREATE CONSTRAINT classification IF NOT EXISTS FOR (n:`Classification`) REQUIRE (n.name) IS UNIQUE;"
-    )
-
-    graph.query(
-        "CREATE INDEX entity_range IF NOT EXISTS FOR (n:`__Entity__`) ON (n.name);"
+        "CREATE INDEX jobRole_Range IF NOT EXISTS FOR (n:`JobProfile`) ON (n.jobRole);"
     )
     graph.query(
-        f"CREATE FULLTEXT INDEX {entity_keyword_index} IF NOT EXISTS FOR (n:`__Entity__`) ON EACH [n.name]",
-    )
-    graph.query(
-        f"CREATE FULLTEXT INDEX {keyword_index_name} IF NOT EXISTS FOR (n:Chunk) ON EACH [n.text]",
+        f"CREATE FULLTEXT INDEX {keyword_index_name} IF NOT EXISTS FOR (n:JobProfile) ON EACH [n.text]",
     )
     graph.query(
         f"""CREATE VECTOR INDEX {index_name} IF NOT EXISTS
-    FOR (n: Chunk) ON (n.embedding)
+    FOR (n: JobProfile) ON (n.embedding)
     OPTIONS {{indexConfig: {{
     `vector.dimensions`: 1536,
     `vector.similarity_function`: 'cosine'
@@ -162,12 +154,12 @@ def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
 
-def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
-    buffer = []
-    for human, ai in chat_history:
-        buffer.append(HumanMessage(content=human))
-        buffer.append(AIMessage(content=ai))
-    return buffer
+# def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+#     buffer = []
+#     for human, ai in chat_history:
+#         buffer.append(HumanMessage(content=human))
+#         buffer.append(AIMessage(content=ai))
+#     return buffer
 
 
 # Extract entities from text
@@ -215,6 +207,12 @@ def generate_full_text_query(input: str) -> str:
     full_text_query += f" {words[-1]}~2"
     return full_text_query.strip()
 
+def _format_chat_history(chat_history: List[Tuple[str, str]]) -> List:
+    buffer = []
+    for human, ai in chat_history:
+        buffer.append(HumanMessage(content=human))
+        buffer.append(AIMessage(content=ai))
+    return buffer
 
 def remove_null_properties(data: Dict[str, Any]):
     if not data:

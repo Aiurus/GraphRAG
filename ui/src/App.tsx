@@ -9,6 +9,7 @@ import { ChatAgentPage } from "./pages/ChatAgentPage";
 import { ImportArticlesPage } from "./pages/ImportArticlesPage";
 import { MantineProvider, createTheme } from "@mantine/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NetworkGraphPage } from "./pages/NetworkGraphPage";
 
 const theme = createTheme({});
 
@@ -24,6 +25,10 @@ const router = createBrowserRouter([
       {
         path: "chat-agent/",
         element: <ChatAgentPage />,
+      },
+      {
+        path: "fetch-network/",
+        element: <NetworkGraphPage />,
       },
       {
         path: "import-articles/",

@@ -36,7 +36,6 @@ export function extractKGData(context: string) {
   let relationships: Record<string, string>[] = []
 
   if (kgData != null) {
-    console.log("=================", kgData)
     kgData.forEach(el => {
       const startRel = el.split(" - ");
       const start = startRel[0];

@@ -12,6 +12,7 @@ import styles from "./styles.module.css";
 const MAIN_MENU_LINKS = [
   { link: "/", label: "Introduction", icon: IconBulb },
   { link: "/import-articles/", label: "Import Database", icon: IconFileImport },
+  { link: "/fetch-network/", label: "Fetch Network", icon: IconFileImport },
   { link: "/chat-agent/", label: "Chat agent", icon: IconMessages },
 ];
 

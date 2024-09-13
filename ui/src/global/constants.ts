@@ -9,14 +9,4 @@ export const RETRIEVAL_MODES = [
     label: "Vector only",
     endpoint: "chat",
   },
-  {
-    name: "graph_based_prefiltering",
-    label: "Prefiltering",
-    endpoint: "prefiltering",
-  },
-  {
-    name: "text2cypher",
-    label: "Text2Cypher",
-    endpoint: "text2cypher",
-  },
 ];

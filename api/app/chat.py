@@ -23,33 +23,17 @@ from langchain_core.runnables import (
 )
 from utils import (
     _format_chat_history,
-    entity_chain,
     format_docs,
-    generate_full_text_query,
     graph,
     llm,
     vector_index,
-    # token_cost_process,
-    import_cypher_query,
 )
 
 from prompt import (
     ANSWER_PROMPT_TEMPLATE,
     CYPHER_GENERATION_PROMPT_TEMPLATE,
-    OLD_CYPHER_GENERATION_PROMPT_TEMPLATE,
 )
 
-from query2cypher import text2cypher_chain
-
-# from dynamic_few_shot_prompt import query_generate
-
-# Condense a chat history and follow-up question into a standalone question
-# rewrite_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language.
-# Double Check the spelling and grammar of the question.
-# Chat History:
-# {chat_history}
-# Follow Up Input: {question}
-# Standalone question:"""  # noqa: E501
 rewrite_template = """
 Given the following conversation and a follow-up question, rewrite the follow-up question as a standalone question so that it can be easily understood and parsed by an LLM. 
 Double Check the spelling and grammar of the question.
@@ -85,13 +69,6 @@ _search_query = RunnableBranch(
     RunnableLambda(lambda x: x["question"]),
 )
 
-# _search_query = (
-#     RunnablePassthrough.assign(
-#         chat_history=lambda x: []
-#     )
-#     | CONDENSE_QUESTION_PROMPT
-#     | llm
-# )
 
 def query_generate(question):
     
@@ -99,42 +76,6 @@ def query_generate(question):
         input_variables=["schema", "question"], template=CYPHER_GENERATION_PROMPT_TEMPLATE
     )
 
-    # CYPHER_GENERATION_PROMPT = PromptTemplate.from_template(OLD_CYPHER_GENERATION_PROMPT_TEMPLATE)
-
-    # corrector_schema = [
-    #     Schema(el["start"], el["type"], el["end"])
-    #     for el in graph.structured_schema.get("relationships")
-    # ]
-    # cypher_validation = CypherQueryCorrector(corrector_schema)
-    # cypher_response = (
-    #     RunnableParallel(
-    #         {
-    #             "question": RunnablePassthrough(),
-    #             "chat_history": lambda x: (
-    #                 _format_chat_history(x["chat_history"]) if x.get("chat_history") else []
-    #             ),
-    #             "search_query": _search_query,
-    #         }
-    #     )
-    #     | RunnableParallel(
-    #         {
-    #             "question": lambda x: x["question"],
-    #             # "chat_history": lambda x: [],
-    #             "chat_history": lambda x: x["chat_history"],
-    #             "context": retriever,
-    #         }
-    #     )
-    #     | ANSWER_PROMPT
-    #     | llm
-    #     | StrOutputParser()
-    # )
-    # cypher_response = (
-    #     # RunnablePassthrough.assign(names=entity_chain)
-    #     RunnablePassthrough.assign(schema=RunnableLambda(get_schema_function))
-    #     | CYPHER_GENERATION_PROMPT
-    #     | llm
-    # )
-    # response = cypher_response.invoke(question)
     QA_TEMPLATE = """You are an assistant that helps to form nice and human understandable answers.
     The information part contains the provided information that you must use to construct an answer.
     The provided information is authoritative, you must never doubt it or try to use your internal knowledge to correct it.
@@ -164,44 +105,26 @@ def query_generate(question):
         cypher_prompt=CYPHER_GENERATION_PROMPT,
         qa_prompt=QA_PROMPT
     )
-    # cypher_llm_chain = CYPHER_GENERATION_PROMPT | llm | StrOutputParser()
-    print(question, "=================Question==================")
     response = cypher_llm_chain.invoke(question)
-    # print(type(get_schema))
-    # response = text2cypher_chain.invoke(question)
-    # generated_cypher = response['result']
-        # generated_cypher = AIMessage(content=cypher_validation(generated_cypher))
     return response['result']
-    # return response.strip()
 
-# # Fulltext index query
 def structured_retriever(question: str) -> str:
     """
     Collects the neighborhood of entities mentioned
     in the question
     """
-    result = ""
-    # cypher_query = query_generate(question)
-    # print(cypher_query, "==============cypher_query===================")
-    # response = graph.query(cypher_query)
     response = query_generate(question)
-    print(response, "===========response=======================")
-    result = "\n".join(response)
     return response
 
 def retriever(input) -> str:
-    # Rewrite query if needed
     query = input.get("search_query")
     if not isinstance(query, str):
         query = query.content
-    # Retrieve documents from vector index
-    # documents = ""
-    documents = format_docs(vector_index.similarity_search(query))
+    documents = format_docs(vector_index.similarity_search(query, 5))
+    print(documents, "================================")
     if input.get("question", {}).get("mode") == "basic_hybrid_search_node_neighborhood":
-        print("adfasdfd")
         structured_data = structured_retriever(query)
         if (structured_data != "I don't know the answer."):
-            # print(structured_data, "=============structuredadfadfasd_data===============")
             documents = f"""Structured data:
             {structured_data}
             Unstructured data:
@@ -214,9 +137,6 @@ chain = (
         {
             "question": RunnablePassthrough(),
             "chat_history": lambda x: [],
-            # "chat_history": lambda x: (
-            #     _format_chat_history(x["chat_history"]) if x.get("chat_history") else []
-            # ),
             "search_query": _search_query,
         }
     )
@@ -224,7 +144,6 @@ chain = (
         {
             "question": lambda x: x["question"],
             "chat_history": lambda x: [],
-            # "chat_history": lambda x: x["chat_history"],
             "context": retriever,
         }
     )
@@ -237,9 +156,6 @@ chain = (
 # Add typing for input
 class ChainInput(BaseModel):
     question: str
-    # chat_history: List[Tuple[str, str]] = Field(
-    #     ..., extra={"widget": {"type": "chat", "input": "input", "output": "output"}}
-    # )
     mode: str
 
 

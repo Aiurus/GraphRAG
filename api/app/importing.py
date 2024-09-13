@@ -11,12 +11,9 @@ from convert import process_json_element
 CATEGORY_THRESHOLD = 0.50
 params = []
 
-DIFF_TOKEN = os.environ["DIFFBOT_API_KEY"]
-
-
 def get_articles():
     """
-    Fetch relevant articles from Diffbot KG endpoint
+    Fetch relevant articles from json
     """
     with open('TransformerService.job_profiles_3rdSep_100.json', 'r') as file:  
         data = json.load(file)
@@ -163,6 +160,7 @@ def process_params(data):
             {**chunk, "embedding": chunk_embedding_map.get(chunk["index"], None)}
             for chunk in param["chunks"]
         ]
+        # param["embedding"] = embeddings.embed_documents([param["text"]])[0]
 
     return params
 
