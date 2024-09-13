@@ -132,35 +132,6 @@ const Root = ({ data, height = "100%" }: Props) => {
         dataset={dataset as Dataset}
         filters={filtersState}
       />
-      <ControlsContainer position={"top-left"}>
-        <div className={styles.filters}>
-          <Button
-            size="xs"
-            color="teal"
-            onClick={() => handleGraphFilterClick("lexical")}
-            style={{
-              opacity: filtersState.visibleNodeGraphTypes.includes("lexical")
-                ? "1"
-                : "0.5",
-            }}
-          >
-            Lexical graph
-          </Button>
-          <Button
-            size="xs"
-            style={{
-              opacity: filtersState.visibleNodeGraphTypes.includes("entity")
-                ? "1"
-                : "0.5",
-            }}
-            ml="xs"
-            color="teal"
-            onClick={() => handleGraphFilterClick("entity")}
-          >
-            Entity graph
-          </Button>
-        </div>
-      </ControlsContainer>
       <ControlsContainer position={"top-right"}>
         <SearchControl style={{ width: "200px" }} />
       </ControlsContainer>

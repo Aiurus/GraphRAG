@@ -57,14 +57,17 @@ def fetch_network() -> Dict:
     data = graph.query(
         """
 CALL {
+    // First MATCH: Retrieve all nodes connected to JobProfile except Chunk nodes
     MATCH (a:JobProfile)-[r]->(end)
     WHERE NOT end:Chunk
     WITH a,r,end
     WITH apoc.coll.toSet(collect(distinct a) + collect(distinct end)) AS nodes,
-        collect(r) AS rels
-    RETURN nodes,
-           rels
-UNION ALL
+         collect(r) AS rels
+    RETURN nodes, rels
+    
+    UNION ALL
+    
+    // Second MATCH: Retrieve neighbors of nodes linked to JobProfile
     MATCH (a:JobProfile)-[]->(end)
     WITH end
     MATCH (end)-[r]->(neighbor)
@@ -73,22 +76,35 @@ UNION ALL
          collect(r) AS rels
     RETURN nodes, rels
 }
+
+// Collect nodes and relationships
 WITH collect(nodes) AS allNodeSets, collect(rels) AS allRelSets
 WITH apoc.coll.flatten(allNodeSets) AS allNodes, apoc.coll.flatten(allRelSets) AS allRels
-RETURN {nodes: [n in allNodes |
-                {
-                    id: coalesce(n.id),
-                    tag: [el in labels(n) WHERE el <> "__Entity__"| el][0],
-                    properties: n {.*}
-                }] ,
-        relationships: [r in allRels |
-                    {start: coalesce(startNode(r).id, startNode(r).id, startNode(r).id),
-                    end: coalesce(endNode(r).id, endNode(r).id, endNode(r).id),
-                    type:type(r),
-                    properties: r {.*}
+
+// Return the output using main attributes for each node type
+RETURN {
+    nodes: [n in allNodes |
+            {
+                id: CASE
+                    WHEN 'Aptitude' IN labels(n) THEN n.attribute
+                    WHEN 'Interest' IN labels(n) THEN n.attribute
+                    WHEN 'Value' IN labels(n) THEN n.attribute
+                    WHEN 'CareerPathway' IN labels(n) THEN n.title
+                    WHEN 'JobRole' IN labels(n) THEN n.title
+                    WHEN 'ReasonLiked' IN labels(n) THEN n.reason
+                    WHEN 'ReasonDisliked' IN labels(n) THEN n.reason
+                    ELSE coalesce(n.id, n.name)
+                END,
+                tag: [el in labels(n) WHERE el <> "__Entity__"| el][0],
+                properties: n {.*}
+            }] ,
+    relationships: [r in allRels |
+                    {start: coalesce(startNode(r).attribute, startNode(r).title, startNode(r).id),
+                     end: coalesce(endNode(r).attribute, endNode(r).title, endNode(r).id),
+                     type: type(r),
+                     properties: r {.*}
                     }]
-        } AS output
-"""
+} AS output"""
     )
     return remove_null_properties(data[0]["output"])
 
